@@ -296,3 +296,103 @@ export function drawTagGraph(canvasId, nodes) {
     });
   }, 200);
 }
+
+// ============================================================
+// MODAL & TOAST SYSTEM
+// ============================================================
+
+function getModalRoot() {
+  return document.getElementById('modal-root') || document.body;
+}
+
+/** Show a modal dialog */
+export function showModal(title, contentHTML, actions = []) {
+  closeModal();
+  const root = getModalRoot();
+  const modal = document.createElement('div');
+  modal.className = 'vantage-modal-overlay';
+  modal.id = 'vantage-modal';
+  modal.innerHTML = `
+    <div class="vantage-modal animate-scale">
+      <div class="vantage-modal-header">
+        <div class="vantage-modal-title">${title}</div>
+        <button class="vantage-modal-close" onclick="window.vantageUI.closeModal()">&times;</button>
+      </div>
+      <div class="vantage-modal-body">${contentHTML}</div>
+      ${actions.length ? `<div class="vantage-modal-footer">
+        ${actions.map(a => `<button class="btn btn-${a.variant || 'secondary'}" onclick="${a.action === 'close' ? 'window.vantageUI.closeModal()' : `window.vantageUI.showToast('${a.label} completed','success');window.vantageUI.closeModal()`}">${a.label}</button>`).join('')}
+      </div>` : ''}
+    </div>`;
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+  root.appendChild(modal);
+  requestAnimationFrame(() => { window.lucide?.createIcons(); });
+}
+
+/** Show a form modal */
+export function showFormModal(title, fields, submitLabel, onSubmitMsg) {
+  const fieldsHTML = fields.map((f, i) => {
+    if (f.type === 'select') {
+      return `<div class="vantage-form-group"><label class="vantage-form-label">${f.label}</label><select class="vantage-form-input" id="vform-${i}">${f.options.map(o => `<option>${o}</option>`).join('')}</select></div>`;
+    }
+    if (f.type === 'textarea') {
+      return `<div class="vantage-form-group"><label class="vantage-form-label">${f.label}</label><textarea class="vantage-form-input vantage-form-textarea" id="vform-${i}" placeholder="${f.placeholder || ''}" rows="3"></textarea></div>`;
+    }
+    return `<div class="vantage-form-group"><label class="vantage-form-label">${f.label}</label><input class="vantage-form-input" id="vform-${i}" type="${f.type || 'text'}" placeholder="${f.placeholder || ''}" /></div>`;
+  }).join('');
+
+  showModal(title, fieldsHTML, [
+    { label: submitLabel || 'Submit', variant: 'primary', action: 'submit' },
+    { label: 'Cancel', variant: 'secondary', action: 'close' },
+  ]);
+  // Override submit button
+  setTimeout(() => {
+    const footer = document.querySelector('.vantage-modal-footer');
+    if (footer) {
+      const submitBtn = footer.querySelector('.btn-primary');
+      if (submitBtn) {
+        submitBtn.onclick = () => {
+          showToast(onSubmitMsg || `${title} submitted successfully`, 'success');
+          closeModal();
+        };
+      }
+    }
+  }, 50);
+}
+
+/** Show a toast notification */
+export function showToast(message, type = 'info') {
+  const colors = { success: '#10b981', info: '#3b82f6', warning: '#f59e0b', error: '#ef4444' };
+  const icons = { success: 'check-circle', info: 'info', warning: 'alert-triangle', error: 'x-circle' };
+  const toast = document.createElement('div');
+  toast.className = 'vantage-toast animate-in';
+  toast.style.borderLeftColor = colors[type] || colors.info;
+  toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" style="width:18px;height:18px;color:${colors[type]}"></i><span>${message}</span>`;
+  let container = document.getElementById('vantage-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'vantage-toast-container';
+    container.className = 'vantage-toast-container';
+    document.body.appendChild(container);
+  }
+  container.appendChild(toast);
+  requestAnimationFrame(() => { window.lucide?.createIcons(); });
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(100%)'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+/** Close modal */
+export function closeModal() {
+  const modal = document.getElementById('vantage-modal');
+  if (modal) modal.remove();
+}
+
+/** Show detail modal for an entity */
+export function showDetailModal(title, details) {
+  const content = `<div style="display:flex;flex-direction:column;gap:12px">
+    ${details.map(([k, v]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:0.85rem;color:var(--text-secondary)">${k}</span><span style="font-weight:600;font-size:0.85rem">${v}</span></div>`).join('')}
+  </div>`;
+  showModal(title, content, [{ label: 'Close', variant: 'secondary', action: 'close' }]);
+}
+
+// ── EXPOSE GLOBALLY ──
+window.vantageUI = { showModal, showFormModal, showToast, closeModal, showDetailModal };
+
